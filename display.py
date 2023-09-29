@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from io import BytesIO
 import json
 import xlsxwriter
 
@@ -16,32 +15,6 @@ def toExcelDate( d ):
         return d.strftime('%x %X')
     else:
         return None
-
-
-def autosize_excel_columns(worksheet, df, cell_format):
-  autosize_excel_columns_df(worksheet, df.index.to_frame(), cell_format)
-  autosize_excel_columns_df(worksheet, df, cell_format, offset=df.index.nlevels)
-
-def autosize_excel_columns_df(worksheet, df, cell_format, offset=0):
-    for idx, col in enumerate(df):
-        series = df[col]
-        max_len = min(80, max((
-            series.astype(str).map(len).max(),
-            len(str(series.name)))
-        )) + 1
-
-        worksheet.set_column(idx+offset, idx+offset, max_len, cell_format=cell_format)
-
-def bold_favourites(worksheet, df, bold_format):
-    #  Bold Favourites
-    offset = 1
-    ids = df.index[df['Favourite'] == "*"].tolist()
-
-    for row in ids:
-        for idx, col in enumerate(df):
-            worksheet.set_row(row+offset, None, bold_format)
-
-
 
 def addItem( dfs, type, session ):
 
