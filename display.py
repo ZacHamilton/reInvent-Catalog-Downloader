@@ -25,6 +25,7 @@ def addItem( dfs, type, session ):
 
     item = {}
     item["Favourite"] = session['favourite']
+    item["FavoriteAWS"] = session['isFavorite']
     item["ID"] = session['thirdPartyID']
     item["Title"] = session['title']
     item["SessionLevel"] = session['sessionLevel']
@@ -35,6 +36,12 @@ def addItem( dfs, type, session ):
     item["Day"] = session['day']
     item["StartTime"] = toExcelDate(session['startTime'])
     item["EndTime"] = toExcelDate(session['endTime'])
+    
+    simple_tag_name = ""
+    for t in session['tags']:
+        simple_tag_name = simple_tag_name + t['parentTagName'].replace(" ", "_").lower() + ": " + t['tagName'] + ", "
+    item["Tags"] = simple_tag_name
+    
     category.append(item)
 
 def loadFavourites():
@@ -127,47 +134,53 @@ def writeExcel():
 
         # Write the header row
         worksheet.write(0, 0, "Favourite", bold_format)
-        worksheet.write(0, 1, "ID", bold_format)
-        worksheet.write(0, 2, "SessionLevel", bold_format)
-        worksheet.write(0, 3, "Title", bold_format)
-        worksheet.write(0, 4, "Description", bold_format)
-        worksheet.write(0, 5, "Type", bold_format)
-        worksheet.write(0, 6, "TrackName", bold_format)
-        worksheet.write(0, 7, "Venue", bold_format)
-        worksheet.write(0, 8, "Day", bold_format)
-        worksheet.write(0, 9, "StartTime", bold_format)
-        worksheet.write(0, 10, "EndTime", bold_format)
+        worksheet.write(0, 1, "FavoriteAWS", bold_format)
+        worksheet.write(0, 2, "ID", bold_format)
+        worksheet.write(0, 3, "SessionLevel", bold_format)
+        worksheet.write(0, 4, "Title", bold_format)
+        worksheet.write(0, 5, "Description", bold_format)
+        worksheet.write(0, 6, "Type", bold_format)
+        worksheet.write(0, 7, "TrackName", bold_format)
+        worksheet.write(0, 8, "Venue", bold_format)
+        worksheet.write(0, 9, "Day", bold_format)
+        worksheet.write(0, 10, "StartTime", bold_format)
+        worksheet.write(0, 11, "EndTime", bold_format)
+        worksheet.write(0, 12, "Tags", bold_format)
 
         row = 1
         for item in category:
             format = bold_format if item["Favourite"] == "*" else cell_format 
 
             worksheet.write(row, 0, item["Favourite"], format)
-            worksheet.write(row, 1, item["ID"], format)
-            worksheet.write(row, 2, item["SessionLevel"], format)
-            worksheet.write(row, 3, item["Title"], format)
-            worksheet.write(row, 4, item["Description"], format)
-            worksheet.write(row, 5, item["Type"], format)
-            worksheet.write(row, 6, item["TrackName"], format)
-            worksheet.write(row, 7, item["Venue"], format)
-            worksheet.write(row, 8, item["Day"], format)
-            worksheet.write(row, 9, item["StartTime"], format)
-            worksheet.write(row, 10, item["EndTime"], format)
+            worksheet.write(row, 1, item["FavoriteAWS"], format)
+            worksheet.write(row, 2, item["ID"], format)
+            worksheet.write(row, 3, item["SessionLevel"], format)
+            worksheet.write(row, 4, item["Title"], format)
+            worksheet.write(row, 5, item["Description"], format)
+            worksheet.write(row, 6, item["Type"], format)
+            worksheet.write(row, 7, item["TrackName"], format)
+            worksheet.write(row, 8, item["Venue"], format)
+            worksheet.write(row, 9, item["Day"], format)
+            worksheet.write(row, 10, item["StartTime"], format)
+            worksheet.write(row, 11, item["EndTime"], format)
+            worksheet.write(row, 12, item["Tags"], format)
 
             row += 1
 
         columns = [
-            {"index": 0, "width": 10},
-            {"index": 1, "width": 20},
-            {"index": 2, "width": 15},
-            {"index": 3, "width": 80},
-            {"index": 4, "width": 110},
-            {"index": 5, "width": 20},
+            {"index": 0, "width": 12},
+            {"index": 1, "width": 16},
+            {"index": 2, "width": 20},
+            {"index": 3, "width": 15},
+            {"index": 4, "width": 80},
+            {"index": 5, "width": 110},
             {"index": 6, "width": 20},
             {"index": 7, "width": 20},
             {"index": 8, "width": 20},
             {"index": 9, "width": 20},
             {"index": 10, "width": 20},
+            {"index": 11, "width": 20},
+            {"index": 12, "width": 110},
         ]
         for column in columns:
             worksheet.set_column(column["index"], column["index"], column["width"], column.get("options"))
