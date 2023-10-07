@@ -13,6 +13,8 @@ USER_POOL_ID = "us-east-1_iu3YTdfT3"
 
 ROOT_DOMAIN = "https://hub.reinvent.awsevents.com"
 ATTENDEE_PORTAL_URL = f"{ROOT_DOMAIN}/attendee-portal/"
+USER_URL = f"{ROOT_DOMAIN}/attendee-portal-api/user/"
+FAVORITES_URL = f"{ROOT_DOMAIN}/attendee-portal-api/events/getUserReservations/?user_uuid="
 SESSIONS_URL = f"{ROOT_DOMAIN}/attendee-portal-api/sessions/list/"
 GET_COOKIES_URL = (
     "https://hub.reinvent.awsevents.com/auth/login/cognito/?code={code}&state={state}"
@@ -67,7 +69,37 @@ def call_attendee_portal_url(session: requests.Session) -> str:
     logger.debug(f" - Redirect location: {redact(redirect_location)}")
     return redirect_location
 
+def call_user_url(session: requests.Session) -> str:
+    logger.info(f"Calling User URL: {USER_URL}")
+    response = session.get(
+        USER_URL,
+        allow_redirects=False,
+        headers={
+            "accept-encoding": "deflate, gzip",
+            "authority": "hub.reinvent.awsevents.com",
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "accept-language": "en-US,en;q=0.9",
+            "cache-control": "no-cache",
+            "pragma": "no-cache",
+            "sec-ch-ua": '"Not/A)Brand";v="99", "Google Chrome";v="115", "Chromium";v="115"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"macOS"',
+            "sec-fetch-dest": "document",
+            "sec-fetch-mode": "navigate",
+            "sec-fetch-site": "none",
+            "sec-fetch-user": "?1",
+            "upgrade-insecure-requests": "1",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+        },
+    )
 
+    logger.debug(f" - Status code: {response.status_code}")
+    logger.info(f" - Results: {response.text}")
+    data = json.loads(response.text)
+    user_uid = data["data"]["userUid"]
+    logger.debug(f" - UserID: {user_uid}")
+    return user_uid
+    
 def call_login_url(session: requests.Session, url) -> str:
     logger.info(f"Calling login URL: {redact(url)}")
     response = session.get(
@@ -230,7 +262,7 @@ def get_cookies(
         )
 
     logger.info(f" - Status code: {response.status_code}")
-
+    
     return response.cookies
 
 
@@ -254,6 +286,27 @@ def fetch_sessions(username: str, password: str):
     return sessions
 
 
+def fetch_favorites(username: str, password: str):
+    session = requests.Session()
+    attendee_portal_redirect_location = call_attendee_portal_url(session)
+    login_redirect_location = call_login_url(session, attendee_portal_redirect_location)
+    authorization_code, state_code = call_authorize_url(
+        session, login_redirect_location
+    )
+
+    access_token, refresh_token, id_token = get_tokens(username, password)
+    perform_storage_call(
+        session, authorization_code, access_token, refresh_token, id_token
+    )
+
+    cookies = get_cookies(session, authorization_code, state_code)
+
+    user_uid = call_user_url(session)
+    list_response = requests.get(FAVORITES_URL + user_uid, cookies=cookies)
+    sessions: Dict = list_response.json()["data"]
+    return sessions
+
+
 @click.command()
 @click.option('--username', prompt='AWS Portal username',
             help='Your AWS re:Invent portal account username.')
@@ -265,8 +318,31 @@ def main(username, password):
 
     logger.info( "Retrieving sessions...")
 
-    sessions = fetch_sessions(username, password)
-    sessions = sorted(sessions, key=lambda d: d['title']) 
+    sessions_data = fetch_sessions(username, password)
+    favorites_data = fetch_favorites(username, password)
+    
+    logging.info("Contents of favorites_data:")
+    logging.info(json.dumps(favorites_data, indent=4))
+    
+    # Extract the favorite sessions
+    favorite_sessions = favorites_data.get("followedSessions", [])
+    
+    # Create a dictionary to look up sessions by scheduleUid
+    session_dict = {session["scheduleUid"]: session for session in sessions_data}
+
+    # Add the favorite flag to the corresponding sessions
+    for favorite_session in favorite_sessions:
+        schedule_uid = favorite_session["scheduleUid"]
+        if schedule_uid in session_dict:
+            session_dict[schedule_uid]["isFavorite"] = True
+            
+    # Mark all other sessions as not favorite
+    for session in sessions_data:
+        if "isFavorite" not in session:
+            session["isFavorite"] = False
+
+    # Sort sessions by Title
+    sessions = sorted(sessions_data, key=lambda d: d['title']) 
 
     logger.info( "Saving sessions...")
     with open("sessions.json", "w") as f:
