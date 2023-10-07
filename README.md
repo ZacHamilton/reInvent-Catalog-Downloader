@@ -1,8 +1,9 @@
-# AWS re:Invent Catalog List Downloader
+# 2023 AWS re:Invent Catalog List Downloader
 
 A Couple of python scripts to download the AWS re:Invent Sessions Catalog and convert to an Excel spreadsheet
 
 Based off: https://github.com/donkersgoed/reinvent-2023-session-fetcher
+\Forked from: https://github.com/AndyQ/reInvent-Catalog-Downloader
 
 ## Prerequisites
 Python 3.10
