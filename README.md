@@ -41,23 +41,26 @@ If not specified you will be prompted to enter them.
 
 ### Converting the catalog
 
-Run this by entering:
+For first time - Run this by entering:
 ```
 python3 display.py
 ```
+This will create a reinvent.xlsx
+Update the selected and favourites columns as needed.
 
-This will create a reinvent_sessions.xlsx
+### After redownloading the catalog and using previous xlsx save
+To get updates from AWS and bring over your previous "selected" and "favourites" columns set in your last xlsx
+1. Save your reinvent.xlsx to something like so "reinvent_20231015.xlsx"
+2. Open "reinvent_20231015.xlsx", then remove filters and re-save
 
-### Adding favourites
-The display script will highlight any favourites you have marked if you create a file favourites.txt containing a list of favourite session ids (one per line).
-
-e.g.
+3.  Rerun by entering:
 ```
-ANT329
-DOP310
-BOA307
-CMP324
+python3 display.py reinvent_20231015.xlsx
 ```
+
+This will create a reinvent.xlsx
+
+
 
 
 
