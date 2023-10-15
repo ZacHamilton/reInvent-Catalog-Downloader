@@ -75,21 +75,21 @@ def call_user_url(session: requests.Session) -> str:
         USER_URL,
         allow_redirects=False,
         headers={
-            "accept-encoding": "deflate, gzip",
-            "authority": "hub.reinvent.awsevents.com",
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "accept": "application/json,text/plain,*/*",
             "accept-language": "en-US,en;q=0.9",
-            "cache-control": "no-cache",
-            "pragma": "no-cache",
-            "sec-ch-ua": '"Not/A)Brand";v="99", "Google Chrome";v="115", "Chromium";v="115"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"macOS"',
-            "sec-fetch-dest": "document",
-            "sec-fetch-mode": "navigate",
-            "sec-fetch-site": "none",
-            "sec-fetch-user": "?1",
-            "upgrade-insecure-requests": "1",
-            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+            # "cache-control": "no-cache",
+            # "pragma": "no-cache",
+            "host": "hub.reinvent.awsevents.com",
+            "referer": "https://hub.reinvent.awsevents.com/attendee-portal/agenda/",
+            "connection": "keep-alive",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+            # "sec-ch-ua": '"Not/A)Brand";v="99", "Google Chrome";v="115", "Chromium";v="115"',
+            # "sec-ch-ua-mobile": "?0",
+            # "sec-ch-ua-platform": '"macOS"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin",
+            "x-requested-with": "XMLHttpRequest",
         },
     )
 
@@ -100,6 +100,7 @@ def call_user_url(session: requests.Session) -> str:
     logger.debug(f" - UserID: {user_uid}")
     return user_uid
     
+
 def call_login_url(session: requests.Session, url) -> str:
     logger.info(f"Calling login URL: {redact(url)}")
     response = session.get(
@@ -280,8 +281,26 @@ def fetch_sessions(username: str, password: str):
     )
 
     cookies = get_cookies(session, authorization_code, state_code)
+    
+    headers={
+        "accept": "application/json,text/plain,*/*",
+        "accept-language": "en-US,en;q=0.9",
+        # "cache-control": "no-cache",
+        # "pragma": "no-cache",
+        "host": "hub.reinvent.awsevents.com",
+        "referer": "https://hub.reinvent.awsevents.com/attendee-portal/agenda/",
+        "connection": "keep-alive",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+        # "sec-ch-ua": '"Not/A)Brand";v="99", "Google Chrome";v="115", "Chromium";v="115"',
+        # "sec-ch-ua-mobile": "?0",
+        # "sec-ch-ua-platform": '"macOS"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "x-requested-with": "XMLHttpRequest",
+    }
 
-    list_response = requests.get(SESSIONS_URL, cookies=cookies)
+    list_response = requests.get(SESSIONS_URL, cookies=cookies, headers=headers)
     sessions: Dict = list_response.json()["data"]
     return sessions
 
@@ -300,9 +319,26 @@ def fetch_favorites(username: str, password: str):
     )
 
     cookies = get_cookies(session, authorization_code, state_code)
+    headers={
+        "accept": "application/json,text/plain,*/*",
+        "accept-language": "en-US,en;q=0.9",
+        # "cache-control": "no-cache",
+        # "pragma": "no-cache",
+        "host": "hub.reinvent.awsevents.com",
+        "referer": "https://hub.reinvent.awsevents.com/attendee-portal/agenda/",
+        "connection": "keep-alive",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+        # "sec-ch-ua": '"Not/A)Brand";v="99", "Google Chrome";v="115", "Chromium";v="115"',
+        # "sec-ch-ua-mobile": "?0",
+        # "sec-ch-ua-platform": '"macOS"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "x-requested-with": "XMLHttpRequest",
+    }
 
     user_uid = call_user_url(session)
-    list_response = requests.get(FAVORITES_URL + user_uid, cookies=cookies)
+    list_response = requests.get(FAVORITES_URL + user_uid, cookies=cookies, headers=headers)
     sessions: Dict = list_response.json()["data"]
     return sessions
 
