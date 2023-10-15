@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
 
+import argparse
 import json
 import xlsxwriter
+import openpyxl
+import os
 
 from datetime import datetime, timezone
 import pytz
 
-sessions = []
-favouritesList = []
-items = {}
 
-def toExcelDate( d ):
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Read Favourite column from one XLSX file and add values to the generated XLSX file by a common column (ID).  It'll also show which catalog items are new and any changes to AWS Favorites.  Favorites that no longer exist will be logged to the console.")
+    parser.add_argument("source_file", nargs='?', default="", help="Path to the source XLSX file (optional)")
+    return parser.parse_args()
+
+
+def to_excel_date( d ):
     if d != None:
         return d.strftime('%x %X')
     else:
         return None
 
-def addItem( dfs, type, session ):
+
+def add_item( dfs, type, session ):
 
     category = dfs.get(type, None)
     if category is None:
@@ -24,8 +31,10 @@ def addItem( dfs, type, session ):
         dfs[type] = category
 
     item = {}
+    item["selected"] = session['selected']
     item["Favourite"] = session['favourite']
     item["FavoriteAWS"] = session['isFavorite']
+    item["IsNew"] = session['isNew']
     item["ID"] = session['thirdPartyID']
     item["Title"] = session['title']
     item["SessionLevel"] = session['sessionLevel']
@@ -34,8 +43,10 @@ def addItem( dfs, type, session ):
     item["TrackName"] = session['trackName']
     item["Venue"] = session['venue']
     item["Day"] = session['day']
-    item["StartTime"] = toExcelDate(session['startTime'])
-    item["EndTime"] = toExcelDate(session['endTime'])
+    item["StartTime"] = to_excel_date(session['startTime'])
+    item["EndTime"] = to_excel_date(session['endTime'])
+    item["scheduleUid"] = session['scheduleUid']
+    item["sessionUid"] = session['sessionUid']
     
     simple_tag_name = ""
     for t in session['tags']:
@@ -44,28 +55,28 @@ def addItem( dfs, type, session ):
     
     category.append(item)
 
-def loadFavourites():
-    global sessions, favouritesList
-    try:
-        with open( "favourites.txt", "r" ) as f:
-            favouritesList = [line.strip() for line in f]
-    except:
-        print( "No favourites list found" )
-        favouritesList = []
-
-    with open("sessions.json", "r") as f:
-        sessions = json.load(f)
-
     
-def parseSessions():
-    global items
+def parse_sessions(sessions, favourites, is_selected_data):
+    items = {}
     print( f"There are currently {len(sessions)} sessions" )
 
     # Display the sessionType, trackName, thirdPartyID, title, and description for each session
     for session in sessions:
 
         type = session['sessionType']
+        
+        # Update Favourites
+        dest_id = session['thirdPartyID'].split("-")[0]
+        session["favourite"] = favourites[dest_id] if dest_id in favourites else ""
 
+        # Update selected
+        dest_id = session['thirdPartyID']
+        session["selected"] = is_selected_data[dest_id] if dest_id in is_selected_data else ""
+
+        # Update IsNew
+        session["isNew"] = False if dest_id in is_selected_data else True
+
+        # Clean up date/times
         startTime = session['startDateTime']
         endTime = session['endDateTime']
         if startTime != "":
@@ -101,99 +112,119 @@ def parseSessions():
         session["venue"] = venue
         session["day"] = day
 
-        # is a favourite?
-        session["favourite"] = "*" if session["thirdPartyID"] in favouritesList else ""
+        add_item( items, "ALL", session )
+    return items
 
-        if session["favourite"]:
-            addItem( items, "Favourites", session )
-        addItem( items, "ALL", session )
-        addItem( items, type, session )
 
-def writeExcel():
-    global items
+def read_excel_source(path: str):
+    favourites_data = {}
+    is_selected_data = {}
+    
+    if os.path.exists(path):
+        source_workbook = openpyxl.load_workbook(path)
+        source_sheet = source_workbook['ALL']
+        
+        for row in source_sheet.iter_rows(min_row=2, values_only=True):  # Assuming headers are in row 1
+            favourite_value = row[1]  # Assuming the "Favourite" column is the second column (0-based index)
+            isselected_value = row[0]  # Assuming the "Selected" column is the first column (0-based index)
+            id_value = row[4].split('-')[0]  # Assuming the "ID" column is the second column (0-based index)
+            if not id_value in favourites_data: 
+                favourites_data[id_value] = favourite_value
+            if not id_value in is_selected_data: 
+                is_selected_data[id_value] = isselected_value
+            
+        source_workbook.close()
+    
+    return favourites_data, is_selected_data
 
-    workbook = xlsxwriter.Workbook("reinvent.xlsx")
-    workbook.set_size(1400, 1000)
 
-    cell_format = workbook.add_format({'text_wrap': True, "font_size": 14})
-    bold_format = workbook.add_format({'bold': 1, 'text_wrap': True, "font_size": 14})
+def write_excel_destination(path: str, items):
 
+    workbook = xlsxwriter.Workbook(path, {'default_row_height': 20})
+
+    workbook = xlsxwriter.Workbook("reinvent.xlsx", {'default_row_height': 20})
+    
+    cell_format = workbook.add_format({'text_wrap': True, "font_size": 12})
+    favorite_format = workbook.add_format({'text_wrap': False, "font_size": 12})
+    bold_format = workbook.add_format({'bold': 1, 'text_wrap': True, "font_size": 12})
+
+    columns = [
+        ("selected", 5),
+        ("Favourite", 5),
+        ("FavoriteAWS", 8),
+        ("IsNew", 7),
+        ("ID", 12),
+        ("Title", 80),
+        ("Description", 110),
+        ("TrackName", 16),
+        ("Venue", 14),
+        ("StartTime", 18),
+        ("EndTime", 18),
+        ("Day", 11),
+        ("Type", 16),
+        ("Tags", 110),
+        ("scheduleUid", 20),
+        ("sessionUid", 20),
+    ]
     # Get the list of keys and move the ALL and Favourites to the top
     keys = list(items.keys())
-
+    
     if "ALL" in keys: 
         keys.remove("ALL")
         keys.insert(0, "ALL")
-    if "Favourites" in keys: 
-        keys.remove("Favourites")
-        keys.insert(1, "Favourites")
-
+        
     for key in keys:
-        category = items[key]
+        category = items.get(key, [])
         worksheet = workbook.add_worksheet(key)
 
         # Write the header row
-        worksheet.write(0, 0, "Favourite", bold_format)
-        worksheet.write(0, 1, "FavoriteAWS", bold_format)
-        worksheet.write(0, 2, "ID", bold_format)
-        worksheet.write(0, 3, "SessionLevel", bold_format)
-        worksheet.write(0, 4, "Title", bold_format)
-        worksheet.write(0, 5, "Description", bold_format)
-        worksheet.write(0, 6, "Type", bold_format)
-        worksheet.write(0, 7, "TrackName", bold_format)
-        worksheet.write(0, 8, "Venue", bold_format)
-        worksheet.write(0, 9, "Day", bold_format)
-        worksheet.write(0, 10, "StartTime", bold_format)
-        worksheet.write(0, 11, "EndTime", bold_format)
-        worksheet.write(0, 12, "Tags", bold_format)
+        for col_num, (header, width) in enumerate(columns):
+            worksheet.write(0, col_num, header, bold_format)
+            worksheet.set_column(col_num, col_num, width)
 
         row = 1
         for item in category:
-            format = bold_format if item["Favourite"] == "*" else cell_format 
+            element = item["Favourite"]
+            if element is None or (isinstance(element, str) and element.strip() == ""):
+                format = cell_format 
+            else:
+                format = favorite_format 
 
-            worksheet.write(row, 0, item["Favourite"], format)
-            worksheet.write(row, 1, item["FavoriteAWS"], format)
-            worksheet.write(row, 2, item["ID"], format)
-            worksheet.write(row, 3, item["SessionLevel"], format)
-            worksheet.write(row, 4, item["Title"], format)
-            worksheet.write(row, 5, item["Description"], format)
-            worksheet.write(row, 6, item["Type"], format)
-            worksheet.write(row, 7, item["TrackName"], format)
-            worksheet.write(row, 8, item["Venue"], format)
-            worksheet.write(row, 9, item["Day"], format)
-            worksheet.write(row, 10, item["StartTime"], format)
-            worksheet.write(row, 11, item["EndTime"], format)
-            worksheet.write(row, 12, item["Tags"], format)
+
+            for col_num, (column_name, _) in enumerate(columns):
+                worksheet.write(row, col_num, item.get(column_name, ""), format)
 
             row += 1
 
-        columns = [
-            {"index": 0, "width": 12},
-            {"index": 1, "width": 16},
-            {"index": 2, "width": 20},
-            {"index": 3, "width": 15},
-            {"index": 4, "width": 80},
-            {"index": 5, "width": 110},
-            {"index": 6, "width": 20},
-            {"index": 7, "width": 20},
-            {"index": 8, "width": 20},
-            {"index": 9, "width": 20},
-            {"index": 10, "width": 20},
-            {"index": 11, "width": 20},
-            {"index": 12, "width": 110},
-        ]
-        for column in columns:
-            worksheet.set_column(column["index"], column["index"], column["width"], column.get("options"))
     workbook.close()
-
-        # df.to_excel(writer, sheet_name=key, index=False)
-        # worksheet = writer.sheets[key]
-
-        # autosize_excel_columns(worksheet, df, cell_format)
-        # bold_favourites(worksheet, df, bold_format)
 
 
 if __name__ == "__main__":
-    loadFavourites()
-    parseSessions()
-    writeExcel()
+    # Parse the command-line arguments
+    args = parse_arguments()
+    
+    # If the user decides to load a previous xlsx generated via this tool then set path to it
+    source_file_path = args.source_file
+    
+    # Load our sessions.json
+    with open("sessions.json", "r") as f:
+        sessions = json.load(f)
+    
+    # Read our source excel which now has our favourites (where we can whatever markup we want) 
+    #    and another column where I keep track of those I want to select for realz
+    favourites_data = []
+    is_selected_data = []
+    # Note: For the old xlsx file, be sure to remove filters and unfreeze rows else it'll break
+    #       Continues to expect the ALL tab
+    favourites_data, is_selected_data = read_excel_source(source_file_path)
+    
+    # Iterate thru Session data and do stuff to it for easy writing to Excel in next step
+    #  - Cleanup date/times
+    #  - extract different fields from tags and make them main elements in the dataset
+    #  - apply selected element to dataset
+    #  - Mark new items as new (since last excel spreadsheet)
+    #  - apply Favourite element to dataset from excel
+    items = parse_sessions(sessions, favourites_data, is_selected_data)
+    
+    # Write modified session data to Excel
+    write_excel_destination("reinvent.xlsx", items)
